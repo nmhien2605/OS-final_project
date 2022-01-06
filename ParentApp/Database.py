@@ -1,7 +1,10 @@
-from os import error
+import os
+from posixpath import dirname
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
-from datetime import date, datetime
+from datetime import datetime
+import urllib.request
+from PIL import ImageTk,Image
 
 appConfigFolderID = '1TmOJkBPEIOJ__Brm35-SkUgPAmLHSija'
 appDataFolderID = '1ZFtEonuzNd6qWbAQ2C7yMvLXwpvTd9H6'
@@ -18,6 +21,7 @@ class Database:
         gauth = GoogleAuth('./config/settings.yaml')
         self.drive = GoogleDrive(gauth)
 
+
     def getFileContent(self, fileName):
         if fileName == "config":
             fileMetadata = { 'id': self.configFileID }
@@ -28,6 +32,7 @@ class Database:
         content = file.GetContentString()
         return content
 
+
     def changeFileContent(self, fileName, fileContent):
         if fileName == "config":
             fileMetadata = {'id': self.configFileID}
@@ -37,6 +42,7 @@ class Database:
         file = self.drive.CreateFile(fileMetadata)
         file.SetContentString(fileContent)
         file.Upload()
+
 
     def getListFolder(self):
         res = []
@@ -53,6 +59,7 @@ class Database:
             res[i]['title'] = res[i]['title'].strftime('%d-%m-%Y')
         return res
 
+
     def getListImages(self, folderID):
         res = []
         listImages = self.drive.ListFile({'q': "'" + folderID + "' in parents and trashed=false"}).GetList()
@@ -60,12 +67,18 @@ class Database:
             res.append({
                 'title': image['title'], 
                 'id': image['id'],
-                'embedLink': image['embedLink']
+                'url': "https://drive.google.com/uc?export=view&id=" + image['id']
             })
+        for i in range(len(res)):
+            fullPath = os.path.join(os.path.dirname(__file__), 'temp', 'image' + str(i+1) + '.jpg')
+            urllib.request.urlretrieve(res[i]['url'], fullPath)
+            baseheight = 500
+            img = Image.open(fullPath)
+            wpercent = (baseheight/float(img.size[1]))
+            wsize = int((float(img.size[0])*float(wpercent)))
+            img = img.resize((wsize, baseheight), Image.ANTIALIAS)
+            img.save(fullPath)
         return res
     
-
-
-
 
 db = Database()
