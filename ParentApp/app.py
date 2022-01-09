@@ -1,9 +1,16 @@
+import os
+from datetime import datetime
+import urllib.request
 from tkinter import *
-from tkinter import ttk, messagebox, font, _tkinter
-from threading import Thread
-from time import sleep
-from PIL import ImageTk,Image
+from tkinter import messagebox, font
+from PIL import ImageTk, Image
 from Database import db
+
+APP_CONFIG_FOLDER_ID = '1TmOJkBPEIOJ__Brm35-SkUgPAmLHSija'
+APP_DATA_FOLDER_ID = '1ZFtEonuzNd6qWbAQ2C7yMvLXwpvTd9H6'
+CONFIG_FILE_ID = '1LoOWQtbZIIMlBOURkfJdH1mPwJURtn5Y'
+FLAG_FILE_ID = '1iKmekqjUXNrWclopiqBFjyT48lsSH8QU'
+PASSWORD_FILE_ID = '1j2XRACvcBA-nP1IhshdLomKfiLD4TbHz'
 
 class App():
     def __init__(self, root):
@@ -20,25 +27,18 @@ class App():
         buttonGroup = Frame(root)
         buttonGroup.pack()
 
-        button1 = Button(buttonGroup, text="Sửa file config", padx=5, pady=5, font=self.normalFont, command=self.onClickChangeConfigFileButton)
+        button1 = Button(buttonGroup, text="Sửa file config", padx=5, pady=5, font=self.normalFont, command=self.changeConfigWindow)
         blank = Label(buttonGroup, text="     ", padx=20)
         button2 = Button(buttonGroup, text="Xem lịch sử hoạt động", padx=5, pady=5, font=self.normalFont, command=self.historyActivityWindow)
 
         button1.grid(row=0, column=0)
         blank.grid(row=0, column=1)
         button2.grid(row=0, column=2)
-
-
-    def onClickChangeConfigFileButton(self):
-        thread = Thread(target=self.createChangeConfigWindow)
-        thread.start()
-        self.runProgressBar()
         
-
-    def createChangeConfigWindow(self):
-        if db.getFileContent("flag") == "1":
+    def changeConfigWindow(self):
+        if db.getFileContent(FLAG_FILE_ID) == "1":
             # Toggle flag
-            db.changeFileContent("flag", "0")
+            db.setFileContent(FLAG_FILE_ID, "0")
 
             # Set up new popup window
             newWindow = Toplevel()
@@ -47,7 +47,7 @@ class App():
             newWindow.resizable(0,0)
 
             # Load config file content
-            content = db.getFileContent("config")
+            content = db.getFileContent(CONFIG_FILE_ID)
 
             # Set up textarea
             container = LabelFrame(newWindow, text="config.txt", pady=5, font=self.normalFont)
@@ -77,7 +77,7 @@ class App():
             newWindow.protocol("WM_DELETE_WINDOW",lambda: self.onCloseChangeConfigWindow(newWindow))
 
         else:
-            self.stopProgessBar()
+            # self.stopProgessBar()
             messagebox.showerror("Thông báo", "Đang có người chỉnh sửa file này.\n Xin quay lại sau ít phút nữa.")
 
 
@@ -88,15 +88,15 @@ class App():
 
     def changeConfigFile(self, newWindow):
         content = self.textarea.get("1.0", 'end-1c')
-        db.changeFileContent("config", content)
-        db.changeFileContent("flag", "1")
+        db.setFileContent(CONFIG_FILE_ID, content)
+        db.setFileContent(FLAG_FILE_ID, "1")
         messagebox.showinfo("Thông báo", "Sửa file thành công")
         newWindow.destroy()
 
 
     def onCloseChangeConfigWindow(self, newWindow):
         if messagebox.askokcancel("Thoát", "Bạn có muốn thoát?"):
-            db.changeFileContent("flag", "1")
+            db.setFileContent(FLAG_FILE_ID, "1")
             newWindow.destroy()
 
 
@@ -112,10 +112,17 @@ class App():
         mainFrame = Frame(newWindow, pady=10, padx=20)
         mainFrame.pack()
 
-        listFolder = db.getListFolder()
+        listFolder = db.getListFoldersInFolder(APP_DATA_FOLDER_ID)
+
+        for i in range(len(listFolder)):
+            listFolder[i]['name'] = datetime.strptime(listFolder[i]['name'], '%Y-%m-%d')
+        listFolder = sorted(listFolder, key=lambda i: i['name'], reverse=True)
+        for i in range(len(listFolder)):
+            listFolder[i]['name'] = listFolder[i]['name'].strftime('%d-%m-%Y')
+        
         i = 0
         for folder in listFolder:
-            button = Button(mainFrame, text=folder['title'], padx=5, pady=5, command=lambda folder=folder: self.viewImages(folder))
+            button = Button(mainFrame, text=folder['name'], padx=5, pady=5, command=lambda folder=folder: self.viewImages(folder))
             button.grid(row=i, column=0)
             i += 1
         
@@ -124,14 +131,26 @@ class App():
 
     def viewImages(self, folder):
         newWindow = Toplevel()
-        newWindow.title(folder['title'])
+        newWindow.title(folder['name'])
 
-        data = db.getListImages(folder['id'])
+        data = db.getListFilesInFolder(folder['id'])
         numImages = len(data)
         if numImages == 0:
             messagebox.showerror("Thông báo", "Không có hình để hiển thị")
             newWindow.destroy()
             return
+
+        # Download images into temp folder
+        for i in range(len(data)):
+            fullPath = os.path.join('./temp', 'image' + str(i+1) + '.jpg')
+            url = "https://drive.google.com/uc?export=view&id=" + data[i]['id']
+            urllib.request.urlretrieve(url, fullPath)
+            baseheight = 500
+            img = Image.open(fullPath)
+            wpercent = (baseheight/float(img.size[1]))
+            wsize = int((float(img.size[0])*float(wpercent)))
+            img = img.resize((wsize, baseheight), Image.ANTIALIAS)
+            img.save(fullPath)
 
         imagesList = []
         for i in range(numImages):
@@ -177,33 +196,33 @@ class App():
         newWindow.mainloop()
 
 
-    def _runProgressBar(self):
-        self.progressBarWindow = Toplevel()
-        self.progressBarWindow.geometry("300x50")
-        self.progressBarWindow.title('Load')
-        self.progressBarWindow.resizable(0,0)
+    # def _runProgressBar(self):
+    #     self.progressBarWindow = Toplevel()
+    #     self.progressBarWindow.geometry("300x50")
+    #     self.progressBarWindow.title('Load')
+    #     self.progressBarWindow.resizable(0,0)
 
-        self.progressBar = ttk.Progressbar(self.progressBarWindow, orient="horizontal", length=286, mode="determinate", maximum=100)
-        self.progressBar.pack()
+    #     self.progressBar = ttk.Progressbar(self.progressBarWindow, orient="horizontal", length=286, mode="determinate", maximum=100)
+    #     self.progressBar.pack()
         
-        for i in range(101):
-            sleep(0.02)
-            self.progressBar['value'] = i
-            self.progressBar.update()
+    #     for i in range(101):
+    #         sleep(0.0165)
+    #         self.progressBar['value'] = i
+    #         self.progressBar.update()
         
-        self.progressBarWindow.destroy()
+    #     self.progressBarWindow.destroy()
 
 
-    def runProgressBar(self):
-        try:
-            self._runProgressBar()
-        except _tkinter.TclError:
-            pass
+    # def runProgressBar(self):
+    #     try:
+    #         self._runProgressBar()
+    #     except _tkinter.TclError:
+    #         pass
 
 
-    def stopProgessBar(self):
-        self.progressBar.destroy()
-        self.progressBarWindow.destroy()
+    # def stopProgessBar(self):
+    #     self.progressBar.destroy()
+    #     self.progressBarWindow.destroy()
             
 
 def main():
