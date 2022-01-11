@@ -1,84 +1,152 @@
 import os
 from datetime import datetime
 import urllib.request
+
 from tkinter import *
-from tkinter import messagebox, font
+from tkinter import messagebox
+from tkscrolledframe import ScrolledFrame
 from PIL import ImageTk, Image
 from Database import db
 
 APP_CONFIG_FOLDER_ID = '1TmOJkBPEIOJ__Brm35-SkUgPAmLHSija'
 APP_DATA_FOLDER_ID = '1ZFtEonuzNd6qWbAQ2C7yMvLXwpvTd9H6'
 CONFIG_FILE_ID = '1LoOWQtbZIIMlBOURkfJdH1mPwJURtn5Y'
-FLAG_FILE_ID = '1iKmekqjUXNrWclopiqBFjyT48lsSH8QU'
+FLAG_CONFIG_FILE_ID = '1Vk1wUgYdLCALaTD7TZOGV67WFwpfgBNT'
 PASSWORD_FILE_ID = '1j2XRACvcBA-nP1IhshdLomKfiLD4TbHz'
+FLAG_PASSWORD_FILE_ID = '1vI0UGh4dDePGYz0v1Z8L826tznW4hIeq'
 
 class App():
     def __init__(self, root):
-        root.geometry("600x300")
-        root.title('Parent Control Application')
-        root.resizable(0,0)
+        self.root = root
+        self.root.geometry("600x350")
+        self.root.resizable(0,0)
 
-        self.titleFont = font.Font(family='Arial', size=25, weight='bold')
-        self.normalFont = font.Font(family='Arial', size=14, weight='normal')
+        self.mainWindow()
 
-        title = Label(root, text="Phần mềm giám sát trẻ em", font=self.titleFont, pady=30)
-        title.pack()
+        self.root.protocol("WM_DELETE_WINDOW", self.onCloseWindow)
 
-        buttonGroup = Frame(root)
-        buttonGroup.pack()
+    
+    def mainWindow(self):
+        self.root.title('Parent Control Application')
 
-        button1 = Button(buttonGroup, text="Sửa file config", padx=5, pady=5, font=self.normalFont, command=self.changeConfigWindow)
-        blank = Label(buttonGroup, text="     ", padx=20)
-        button2 = Button(buttonGroup, text="Xem lịch sử hoạt động", padx=5, pady=5, font=self.normalFont, command=self.historyActivityWindow)
+        self.title = Label(self.root, text="Phần mềm giám sát trẻ em", font=('Arial', 25, 'bold'), pady=30)
+        self.title.pack()
+
+        self.buttonGroup = Frame(self.root)
+        self.buttonGroup.pack()
+
+        button1 = Button(self.buttonGroup, text="Quản lý thời gian", padx=5, pady=5, font=('Arial', 14), command=self.changeConfigWindow)
+        button2 = Button(self.buttonGroup, text="Quản lý mật khẩu", padx=5, pady=5, font=('Arial', 14), command=self.changePasswordWindow)
+        button3 = Button(self.buttonGroup, text="Xem lịch sử hoạt động", padx=5, pady=5, font=('Arial', 14), command=self.historyActivityWindow)
 
         button1.grid(row=0, column=0)
-        blank.grid(row=0, column=1)
-        button2.grid(row=0, column=2)
+        button2.grid(row=1, column=0, pady=20)
+        button3.grid(row=2, column=0)
         
-    def changeConfigWindow(self):
-        if db.getFileContent(FLAG_FILE_ID) == "1":
-            # Toggle flag
-            db.setFileContent(FLAG_FILE_ID, "0")
 
-            # Set up new popup window
-            newWindow = Toplevel()
-            newWindow.geometry("600x300")
-            newWindow.title('Sửa file config')
-            newWindow.resizable(0,0)
+    def changeConfigWindow(self):
+        if db.getFileContent(FLAG_CONFIG_FILE_ID) == "1":
+            # Toggle flag
+            db.setFileContent(FLAG_CONFIG_FILE_ID, "0")
+
+            # Set up new window
+            self.root.title('Quản lý thời gian')
+            self.title.destroy()
+            self.buttonGroup.destroy()
 
             # Load config file content
             content = db.getFileContent(CONFIG_FILE_ID)
 
             # Set up textarea
-            container = LabelFrame(newWindow, text="config.txt", pady=5, font=self.normalFont)
-            container.pack()
+            self.container = LabelFrame(self.root, text="config.txt", pady=5, font=('Arial', 14))
+            self.container.pack()
 
-            scrollbar = Scrollbar(container)
+            scrollbar = Scrollbar(self.container)
             scrollbar.pack(side=RIGHT, fill=Y)
 
-            self.textarea = Text(container, height=10, width=50, borderwidth=3, font=('Consolas', 12),  yscrollcommand=scrollbar.set)
+            self.textarea = Text(self.container, height=12, width=55, borderwidth=3, font=('Consolas', 12),  yscrollcommand=scrollbar.set)
             self.textarea.pack(side=LEFT, fill=BOTH)
             scrollbar.config(command=self.textarea.yview)
 
             self.insertTextIntoTextarea(content)
 
             # Set up button
-            footer = Frame(newWindow, pady=10)
-            footer.pack()
+            self.footer = Frame(self.root, pady=10)
+            self.footer.pack()
 
-            button1 = Button(footer, text="Sửa", padx=5, pady=5, font=self.normalFont, command=lambda: self.changeConfigFile(newWindow))
-            blank = Label(footer, text="     ", padx=10)
-            button2 = Button(footer, text="Hoàn tác", padx=5, pady=5, font=self.normalFont, command=lambda: self.insertTextIntoTextarea(content))
-
-            button1.grid(row=0, column=0)
-            blank.grid(row=0, column=1)
-            button2.grid(row=0, column=2)
-
-            newWindow.protocol("WM_DELETE_WINDOW",lambda: self.onCloseChangeConfigWindow(newWindow))
+            btnEdit = Button(self.footer, text="Sửa", padx=5, pady=5, font=('Arial', 14), command=self.changeConfigFile)
+            btnUndo = Button(self.footer, text="Hoàn tác", padx=5, pady=5, font=('Arial', 14), command=lambda: self.insertTextIntoTextarea(content))
+            btnBack = Button(self.footer, text="Trở lại", padx=5, pady=5, font=('Arial', 14), command=lambda: self.onCloseWindow('config'))
+            
+            btnEdit.grid(row=0, column=0)
+            btnUndo.grid(row=0, column=1, padx=10)
+            btnBack.grid(row=0, column=2)
 
         else:
             # self.stopProgessBar()
             messagebox.showerror("Thông báo", "Đang có người chỉnh sửa file này.\n Xin quay lại sau ít phút nữa.")
+
+
+    def changeConfigFile(self):
+        content = self.textarea.get("1.0", 'end-1c')
+        db.setFileContent(CONFIG_FILE_ID, content)
+        db.setFileContent(FLAG_CONFIG_FILE_ID, "1")
+        messagebox.showinfo("Thông báo", "Sửa file thành công")
+        self.container.destroy()
+        self.footer.destroy()
+        self.mainWindow()
+
+
+    def changePasswordWindow(self):
+        if db.getFileContent(FLAG_PASSWORD_FILE_ID) == "1":
+            # Toggle flag
+            db.setFileContent(FLAG_PASSWORD_FILE_ID, "0")
+
+            # Set up new window
+            self.root.title('Quản lý mật khẩu')
+            self.title.destroy()
+            self.buttonGroup.destroy()
+
+            # Load config file content
+            content = db.getFileContent(PASSWORD_FILE_ID)
+
+            # Set up textarea
+            self.container = LabelFrame(self.root, text="password.txt", pady=5, font=('Arial', 14))
+            self.container.pack()
+
+            scrollbar = Scrollbar(self.container)
+            scrollbar.pack(side=RIGHT, fill=Y)
+
+            self.textarea = Text(self.container, height=12, width=55, borderwidth=3, font=('Consolas', 12),  yscrollcommand=scrollbar.set)
+            self.textarea.pack(side=LEFT, fill=BOTH)
+            scrollbar.config(command=self.textarea.yview)
+
+            self.insertTextIntoTextarea(content)
+
+            # Set up button
+            self.footer = Frame(self.root, pady=10)
+            self.footer.pack()
+
+            btnEdit = Button(self.footer, text="Sửa", padx=5, pady=5, font=('Arial', 14), command=self.changePasswordFile)
+            btnUndo = Button(self.footer, text="Hoàn tác", padx=5, pady=5, font=('Arial', 14), command=lambda: self.insertTextIntoTextarea(content))
+            btnBack = Button(self.footer, text="Trở lại", padx=5, pady=5, font=('Arial', 14), command=lambda: self.onCloseWindow('config'))
+            
+            btnEdit.grid(row=0, column=0)
+            btnUndo.grid(row=0, column=1, padx=10)
+            btnBack.grid(row=0, column=2)
+
+        else:
+            messagebox.showerror("Thông báo", "Đang có người chỉnh sửa file này.\n Xin quay lại sau ít phút nữa.")
+
+
+    def changePasswordFile(self):
+        content = self.textarea.get("1.0", 'end-1c')
+        db.setFileContent(PASSWORD_FILE_ID, content)
+        db.setFileContent(FLAG_PASSWORD_FILE_ID, "1")
+        messagebox.showinfo("Thông báo", "Sửa file thành công")
+        self.container.destroy()
+        self.footer.destroy()
+        self.mainWindow()
 
 
     def insertTextIntoTextarea(self, content):
@@ -86,31 +154,27 @@ class App():
         self.textarea.insert(INSERT, content)
 
 
-    def changeConfigFile(self, newWindow):
-        content = self.textarea.get("1.0", 'end-1c')
-        db.setFileContent(CONFIG_FILE_ID, content)
-        db.setFileContent(FLAG_FILE_ID, "1")
-        messagebox.showinfo("Thông báo", "Sửa file thành công")
-        newWindow.destroy()
-
-
-    def onCloseChangeConfigWindow(self, newWindow):
-        if messagebox.askokcancel("Thoát", "Bạn có muốn thoát?"):
-            db.setFileContent(FLAG_FILE_ID, "1")
-            newWindow.destroy()
-
-
     def historyActivityWindow(self):
-        newWindow = Toplevel()
-        newWindow.geometry("600x300")
-        newWindow.title('Xem lịch sử hoạt động')
-        newWindow.resizable(0,0)
+        # set up new window
+        self.root.title('Xem lịch sử hoạt động')
+        self.title.destroy()
+        self.buttonGroup.destroy()
 
-        title = Label(newWindow, text="Xem lịch sử theo ngày", font=('Arial', 14), pady=10)
+        self.sf = ScrolledFrame(self.root)
+        self.sf.pack(side="top", expand=1, fill="both")
+
+        # Bind the arrow keys and scroll wheel
+        self.sf.bind_arrow_keys(self.root)
+        self.sf.bind_scroll_wheel(self.root)
+
+        # Create a frame within the ScrolledFrame
+        inner_frame = self.sf.display_widget(Frame, fit_width=True)
+
+        title = Label(inner_frame, text="Xem lịch sử theo ngày", font=('Arial', 18), pady=10)
         title.pack()
 
-        mainFrame = Frame(newWindow, pady=10, padx=20)
-        mainFrame.pack()
+        frame = Frame(inner_frame, pady=10, padx=20)
+        frame.pack()
 
         listFolder = db.getListFoldersInFolder(APP_DATA_FOLDER_ID)
 
@@ -122,27 +186,34 @@ class App():
         
         i = 0
         for folder in listFolder:
-            button = Button(mainFrame, text=folder['name'], padx=5, pady=5, command=lambda folder=folder: self.viewImages(folder))
-            button.grid(row=i, column=0)
+            button = Button(frame, text=folder['name'], font=('Arial', 14), padx=5, pady=5, command=lambda folder=folder: self.viewImagesWindow(folder))
+            button.grid(row=i, column=0, pady=5)
             i += 1
         
-        newWindow.mainloop()
+        self.btnBack = Button(inner_frame, text="Trở lại", font=('Arial', 14), padx=5, pady=5, command=lambda: self.onCloseWindow('history'))
+        self.btnBack.pack(pady=5)
 
-
-    def viewImages(self, folder):
-        newWindow = Toplevel()
-        newWindow.title(folder['name'])
+    def viewImagesWindow(self, folder):
+        # set up new window
+        self.root.title(folder['name'])
+        self.root.geometry("1000x550")
+        self.root.resizable(1,1)
+        self.sf.destroy()
 
         data = db.getListFilesInFolder(folder['id'])
         numImages = len(data)
         if numImages == 0:
             messagebox.showerror("Thông báo", "Không có hình để hiển thị")
-            newWindow.destroy()
-            return
+            return self.onCloseWindow('viewImage')
 
         # Download images into temp folder
         for i in range(len(data)):
-            fullPath = os.path.join('./temp', 'image' + str(i+1) + '.jpg')
+            extension = ''
+            if data[i]['mimeType'] == 'image/png':
+                extension = '.png'
+            elif data[i]['mimeType'] == 'image/jpeg':
+                extension = '.jpg'
+            fullPath = os.path.join('./temp', 'image' + str(i+1) + extension)
             url = "https://drive.google.com/uc?export=view&id=" + data[i]['id']
             urllib.request.urlretrieve(url, fullPath)
             baseheight = 500
@@ -156,12 +227,12 @@ class App():
         for i in range(numImages):
             imagesList.append(ImageTk.PhotoImage(Image.open('./temp/image' + str(i+1) + '.jpg')))
 
-        imageView = Label(newWindow, image=imagesList[0])
-        imageView.pack(fill='both', expand=True)
+        self.imageView = Label(self.root, image=imagesList[0])
+        self.imageView.pack(fill='both', expand=True)
 
         def forward(image_number):
             
-            imageView.configure(image=imagesList[image_number])
+            self.imageView.configure(image=imagesList[image_number])
             
             button_forward.configure(command=lambda: forward(image_number+1), state=ACTIVE)
             button_back.configure(command=lambda: back(image_number-1), state=ACTIVE)
@@ -172,7 +243,7 @@ class App():
 
         def back(image_number):
 
-            imageView.configure(image=imagesList[image_number])
+            self.imageView.configure(image=imagesList[image_number])
             
             button_forward.configure(command=lambda: forward(image_number+1), state=ACTIVE)
             button_back.configure(command=lambda: back(image_number-1), state=ACTIVE)
@@ -181,48 +252,45 @@ class App():
                 button_back.configure(state=DISABLED)
 
 
-        footer = Frame(newWindow)
-        footer.pack()
+        self.footer = Frame(self.root)
+        self.footer.pack()
 
-        button_back = Button(footer, text="<<", font=(14), state=DISABLED)
-        button_forward = Button(footer, text=">>", font=(14), state=ACTIVE, command=lambda: forward(1))
+        button_back = Button(self.footer, text="<<", font=(14), state=DISABLED)
+        btnBack = Button(self.footer, text="Trở lại", font=('Arial', 14), command=lambda: self.onCloseWindow('viewImage'))
+        button_forward = Button(self.footer, text=">>", font=(14), state=ACTIVE, command=lambda: forward(1))
 
         if numImages == 1:
             button_forward.configure(state=DISABLED)
 
         button_back.grid(row=0, column=0)
-        button_forward.grid(row=0, column=1)
+        btnBack.grid(row=0, column=1, padx=10)
+        button_forward.grid(row=0, column=2)
 
-        newWindow.mainloop()
-
-
-    # def _runProgressBar(self):
-    #     self.progressBarWindow = Toplevel()
-    #     self.progressBarWindow.geometry("300x50")
-    #     self.progressBarWindow.title('Load')
-    #     self.progressBarWindow.resizable(0,0)
-
-    #     self.progressBar = ttk.Progressbar(self.progressBarWindow, orient="horizontal", length=286, mode="determinate", maximum=100)
-    #     self.progressBar.pack()
-        
-    #     for i in range(101):
-    #         sleep(0.0165)
-    #         self.progressBar['value'] = i
-    #         self.progressBar.update()
-        
-    #     self.progressBarWindow.destroy()
-
-
-    # def runProgressBar(self):
-    #     try:
-    #         self._runProgressBar()
-    #     except _tkinter.TclError:
-    #         pass
-
-
-    # def stopProgessBar(self):
-    #     self.progressBar.destroy()
-    #     self.progressBarWindow.destroy()
+    def onCloseWindow(self, window_type=None):
+        if messagebox.askokcancel("Thoát", "Bạn có muốn thoát?"):
+            if window_type == 'config':
+                self.container.destroy()
+                self.footer.destroy()
+                db.setFileContent(FLAG_CONFIG_FILE_ID, "1")
+                self.mainWindow()
+            elif window_type == 'password':
+                self.container.destroy()
+                self.footer.destroy()
+                db.setFileContent(FLAG_PASSWORD_FILE_ID, "1")
+                self.mainWindow()
+            elif window_type == 'history':
+                self.sf.destroy()
+                self.mainWindow()
+            elif window_type == 'viewImage':
+                self.root.geometry("600x350")
+                self.root.resizable(0,0)
+                self.imageView.destroy()
+                self.footer.destroy()
+                self.historyActivityWindow()
+            elif window_type == None:
+                self.root.destroy()
+                db.setFileContent(FLAG_CONFIG_FILE_ID, "1")
+                db.setFileContent(FLAG_PASSWORD_FILE_ID, "1")
             
 
 def main():

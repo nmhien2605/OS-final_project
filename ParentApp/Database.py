@@ -1,5 +1,6 @@
 import os
 import io
+import mimetypes
 from Google import Create_Service
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload, MediaIoBaseUpload
 
@@ -24,21 +25,23 @@ class Database:
         return folder['id']
 
     # Tạo file và tải lên thư mục cha hoặc không, trả ra id file vừa tạo
-    def createFile(self, fileName, filePath, folderID=None, fileType='image/jpeg'):
+    # tên file bao gồm cả phần đuôi extension
+    def uploadFile(self, fileName, filePath, folderID=None):
         file_metadata = {
             'name': fileName,
         }
         if folderID is not None:
             file_metadata['parents'] = [folderID]
-        media = MediaFileUpload(filePath, mimetype=fileType)
+        fileType = mimetypes.guess_type(fileName)
+        media = MediaFileUpload(filePath, mimetype=fileType[0])
 
-        res = self.service.files().create(
+        fileID = self.service.files().create(
             body=file_metadata,
             media_body=media,
             fields='id'
         ).execute()
 
-        return res
+        return fileID
 
     # Tải về một file trên drive dựa vào id
     def getFile(self, fileID, fileName, folderPath=None):
@@ -63,6 +66,7 @@ class Database:
             f.write(fh.read())
             f.close()
 
+    # Tải xuống nội dung file TEXT có sẵn trên cloud 
     def getFileContent(self, fileID):
         request = self.service.files().get_media(fileId=fileID)
 
@@ -78,7 +82,7 @@ class Database:
 
         return content.decode('utf-8')
         
-    # Thay đổi nội dung file text có sẵn trên cloud
+    # Thay đổi nội dung file TEXT có sẵn trên cloud
     def setFileContent(self, fileID, fileContent):
 
         file_content = MediaIoBaseUpload(io.BytesIO(fileContent.encode('utf-8')), mimetype='text/plain')
