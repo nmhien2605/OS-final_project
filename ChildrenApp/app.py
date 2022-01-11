@@ -1,62 +1,140 @@
+import os
 from threading import Thread
 import time
+from datetime import datetime
 import pyautogui
 import tkinter as tk
-from tkinter.constants import FALSE, TRUE
 import tkinter.messagebox as msg
 from tkinter import font
 from data import Database as db
 
 TIME_RELOGIN = 5
 TIME_SHUTDOWN =  5
+TIME_SCREENSHOT = 5
+TIME_UPDATE = 5
+START_TIME = 0
+DURATION_TIME = 0
+INTERRUPT_TIME = 0
+LOGIN_CHECK = -1
+STUDING = False
 WAIT = True
 PARENT = False
 
 
+def get_time_now():
+    date = datetime.now()
+    return date.hour * 60 + date.minute
+
 def check_login(password):
-    passList = db.getPassword()
+    passList = db.getFileContent('password')
+    # passList = ['p', 'c'] # test line
     if password == passList[0]:
-        return True
-    return False
+        return 0
+    elif password == passList[1]:
+        return 1
+    return 2
 
 
 def shutdown():
-    print("shutdown\n")
-    # do something in here
-    #
-    #
+    print("shutdown")
+    # os.system("shutdown /s /t 1")
 
 
 def wait_shutdown():
-    print("waiting to shutdown...\n")
+    print("waiting to shutdown...")
     time.sleep(TIME_SHUTDOWN)
-    print(PARENT, "\n")
+    print(PARENT, "")
     if not(PARENT):
         shutdown()
 
 
-def check_schedule():
-    schedule = db.getSchedule()
+def convert_schedule(data):
+    lines = data.splitlines()
+    list = []
+    for line in lines:
+        list.append(line.split(' '))
+    schedule = []
+    for i in range(len(list)):
+        schedule.append([])
+        for j in range(2):
+            time = datetime.strptime(list[i][j].replace(list[i][j][0], ''), '%H:%M')
+            schedule[i].append(time.hour * 60 + time.minute)
+        for j in range(2, len(list[i])):
+            schedule[i].append(int(list[i][j].replace(list[i][j][0], '')))
+    return schedule
+
+
+def get_schedule():
+    data = db.getFileContent('config')
+    schedule = convert_schedule(data)
+    return schedule
+
+
+def check_study(item, time):
+    global STUDING, DURATION_TIME, INTERRUPT_TIME
+    
+    if len(item) > 3:
+        if STUDING:
+            duration = time - DURATION_TIME
+            if len(item) > 4:
+                tmp = (time - START_TIME) // (item[2] + item[3])
+                sum = item[2] * tmp + (duration)
+                if sum >= item[4]:
+                    return False
+                elif item[4] - sum < 2:
+                    msg.showinfo('Notification', '1 minute left until stop study!')
+                    return True
+
+            if duration >= item[2]:
+                STUDING = False
+                INTERRUPT_TIME = time
+            elif item[2] - duration < 2:
+                msg.showinfo('Notification', '1 minute left until break time!')
+
+        else:
+            interrupt = time - INTERRUPT_TIME
+            if interrupt >= item[3]:
+                STUDING = True
+                DURATION_TIME = time
+            elif item[3] - interrupt < 2:
+                msg.showinfo('Notification', '1 minute left until study time!')
+
+    elif len(item) == 3:
+        sum = time - START_TIME
+        if sum >= item[2]:
+            return False
+        elif item[2] - sum < 2:
+            msg.showinfo('Notification', '1 minute left until stop study!')
+
     return True
+
+
+def check_schedule():
+    schedule = get_schedule()
+    # date = datetime.strptime('22:00', '%H:%M') # test line
+    # time = date.hour * 60 + date.minute
+    time = get_time_now()
+    for item in schedule:
+        if item[0] <= time and time < item[1]:
+            if WAIT == True:
+                check = check_study(item, time)
+                if not(check):
+                    return False
+            if item[1] - time < 2:
+                msg.showinfo('Notification', '1 minute left until stop study and shutdown!')
+            return True
+    return False
 
 
 def record(): # take screenshot or record keyboard action
     print("record")
     while True:
         srceenshot = pyautogui.screenshot()
-        srceenshot.save(r'ChildrenApp\screenshot\test.png')
-        time.sleep(10)
-        # do something in here
-
-
-def on_top_window(root):
-    while True:
-        print("top\n")
-        root.lift()
-        # root.attributes('-topmost', True)
-        # root.update()
-        # root.attributes('-topmost', False)
-        time.sleep(1)
+        date = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        fileName = 'screenshot\\' + date + str('.png')
+        srceenshot.save(fileName)
+        # do something in here to upload imges to cloud
+        time.sleep(TIME_SCREENSHOT)
 
 
 class App(tk.Tk):
@@ -65,7 +143,8 @@ class App(tk.Tk):
         tk.Tk.__init__(self, *args, **kwargs)
 
         self.title("Children Control Application")
-        self.state("zoomed")
+        self.attributes("-fullscreen", True)
+        # self.state("zoomed") # test line
         self.title_font = font.Font(family='Helvetica', size=18, weight="bold", slant="italic")
         
         container = tk.Frame(self)
@@ -83,13 +162,7 @@ class App(tk.Tk):
             frame.grid(row=0, column=0, sticky="nsew")
 
         self.show_frame("LoginPage")
-    #     self.on_top()
-
-    # def on_top(self):
-    #     thr = Thread(target=on_top_window, args=(self), daemon=True)
-    #     thr.start()
-
-    # switch to screen page_name
+    
     def show_frame(self, page_name):
 
         frame = self.frames[page_name]
@@ -99,22 +172,35 @@ class App(tk.Tk):
         checkLogin = check_login(password)
         checkSchedule = check_schedule()
 
-        global PARENT, CHILDREN, WAIT
+        global PARENT, CHILDREN, WAIT, LOGIN_CHECK
 
-        if checkLogin:
+        if checkLogin == 0:
             PARENT = True
             WAIT = True
+            LOGIN_CHECK = -1
             self.destroy()
         else:
             PARENT = False
             if checkSchedule:
-                thr = Thread(target=record, daemon=True)
-                thr.start()
-                WAIT = False
-                self.destroy()
+                if checkLogin == 1:
+                    thr = Thread(target=record, daemon=True)
+                    thr.start()
+                    WAIT = True
+                    LOGIN_CHECK = -1
+                    self.destroy()
+                else:
+                    if LOGIN_CHECK == -1:
+                        LOGIN_CHECK = 3
+                    elif LOGIN_CHECK == 0:
+                        thr = Thread(target=wait_shutdown, daemon=True)
+                        thr.start()
+                        thr.join()
+                    else:
+                        LOGIN_CHECK -= 1
             else:
                 thr = Thread(target=wait_shutdown, daemon=True)
                 thr.start()
+                LOGIN_CHECK = -1
 
 
 class LoginPage(tk.Frame):
@@ -128,63 +214,52 @@ class LoginPage(tk.Frame):
         lblPass = tk.Label(self, text="Password")
         entryPass = tk.Entry(self)
         btnEnter = tk.Button(self, text="Enter", command=lambda: controller.login(entryPass.get()))
-        # btnBack = tk.Button(self, text="Back", command=lambda: controller.show_frame("Search"))
-        # btnBackMain = tk.Button(self, text="Back to Main", command=lambda: controller.show_frame("MainPage"))
 
         lblPass.pack(pady=3)
         entryPass.pack(pady=3)
         btnEnter.pack(pady=3)
-        # btnBack.pack(pady=3)
-        # btnBackMain.pack(pady=3)
 
 
-# class MainPage(tk.Frame):
+def study():
+    global START_TIME, DURATION_TIME, STUDING
+    START_TIME = get_time_now()
+    DURATION_TIME = START_TIME
+    STUDING = True
+    duration = True
+    study = True
 
-#     def __init__(self, parent, controller):
-#         tk.Frame.__init__(self, parent)
-#         self.controller = controller
-#         label = tk.Label(self, text="Info", font=controller.title_font)
-#         label.pack(side="top", fill="x", pady=10)
-
-        # btnConnect = tk.Button(self, text="Connect to Server", command=lambda: controller.connect_server())
-
-        # btnConnect.pack(pady=3)
-
-
-def to_top(root):
-   root.lift()
-
-
-def stay_on_top(root):
-    while True:
-        to_top(root)
-        time.sleep(1)
-   #root.after(2000, stay_on_top(root))
+    while study:
+        time.sleep(TIME_UPDATE)
+        if check_schedule():
+            if not(STUDING):
+                if duration:
+                    duration = False
+                    print('new window') # need some code
+            else:
+                duration = True
+            print('check')
+        else:
+            study = False
+            shutdown()
 
 
 if __name__ == "__main__":
-
-    # content = db.getFileContent("config")
-    # print(content)
-    root = App()
-    # stay_on_top(root)
-    thr = Thread(target=on_top_window, args=(root), daemon=True)
-    thr.start()
     
     while WAIT:
-
         WAIT = False
-
+        root = App()
+        root.attributes('-topmost', True)
+        root.update()
+        root.attributes('-topmost', False)
         root.mainloop()
 
         if PARENT:
             if not(WAIT):
-                break # delete here when release
-                WAIT = True
+                break
             else:
                 time.sleep(TIME_RELOGIN)
         else:
-            time.sleep(1)
-            # do something
+            study()
+            break
     
     print("exit")

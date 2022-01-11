@@ -1,14 +1,13 @@
-import os
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
-from datetime import datetime
+from datetime import date, datetime
 import urllib.request
 from PIL import ImageTk,Image
 
 appConfigFolderID = '1TmOJkBPEIOJ__Brm35-SkUgPAmLHSija'
 appDataFolderID = '1ZFtEonuzNd6qWbAQ2C7yMvLXwpvTd9H6'
 configFileID = '1LoOWQtbZIIMlBOURkfJdH1mPwJURtn5Y'
-passwordFileID = ''
+passwordFileID = '1j2XRACvcBA-nP1IhshdLomKfiLD4TbHz'
 flagFileID = '1iKmekqjUXNrWclopiqBFjyT48lsSH8QU'
 
 class DataDrive:
@@ -37,19 +36,3 @@ class DataDrive:
 
 
 Database = DataDrive()
-
-# class Database():
-
-#     def __init__(self):
-#         self.data = []
-
-#     def getSchedule(): # replace by file sync
-#         schedule = []
-#         return schedule
-
-#     def getPassword(): # replace by file sync
-#         password = []
-#         f = open(r'ChildrenApp\password.txt', "r")
-#         password.append(f.readline().replace("\n", ""))
-#         password.append(f.readline().replace("\n", ""))
-#         return password
