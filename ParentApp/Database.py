@@ -1,84 +1,126 @@
 import os
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
-from datetime import datetime
-import urllib.request
-from PIL import Image
+import io
+import mimetypes
+from Google import Create_Service
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload, MediaIoBaseUpload
 
-appConfigFolderID = '1TmOJkBPEIOJ__Brm35-SkUgPAmLHSija'
-appDataFolderID = '1ZFtEonuzNd6qWbAQ2C7yMvLXwpvTd9H6'
-configFileID = '1LoOWQtbZIIMlBOURkfJdH1mPwJURtn5Y'
-flagFileID = '1iKmekqjUXNrWclopiqBFjyT48lsSH8QU'
-passwordFileID = '1j2XRACvcBA-nP1IhshdLomKfiLD4TbHz'
+CLIENT_SECRET_FILE = './config/secret_file.json'
+API_NAME = 'drive'
+API_VERSION = 'v3'
+SCOPES = ['https://www.googleapis.com/auth/drive']
 
 class Database:
     def __init__(self):
-        self.appConfigFolderID = appConfigFolderID
-        self.appDataFolderID = appDataFolderID
-        self.configFileID = configFileID
-        self.flagFileID = flagFileID
+        self.service = Create_Service(CLIENT_SECRET_FILE, API_NAME, API_VERSION, SCOPES)
 
-        gauth = GoogleAuth('./config/settings.yaml')
-        self.drive = GoogleDrive(gauth)
+    # Tạo thư mục trong thư mục cha hoặc không, trả ra id thư mục vừa tạo
+    def createFolder(self, folderName, parentFolderID=None):
+        file_metadata =  {
+            'name': folderName,
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        if parentFolderID is not None:
+            file_metadata['parents'] = [parentFolderID]
+        folder = self.service.files().create(body=file_metadata).execute()
+        return folder['id']
+
+    # Tạo file và tải lên thư mục cha hoặc không, trả ra id file vừa tạo
+    # tên file bao gồm cả phần đuôi extension
+    def uploadFile(self, fileName, filePath, folderID=None):
+        file_metadata = {
+            'name': fileName,
+        }
+        if folderID is not None:
+            file_metadata['parents'] = [folderID]
+        fileType = mimetypes.guess_type(fileName)
+        media = MediaFileUpload(filePath, mimetype=fileType[0])
+
+        fileID = self.service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id'
+        ).execute()
+
+        return fileID
+
+    # Tải về một file trên drive dựa vào id
+    def getFile(self, fileID, fileName, folderPath=None):
+        request = self.service.files().get_media(fileId=fileID)
+
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fd=fh, request=request)
+
+        done = False
+
+        while not done:
+            status, done = downloader.next_chunk()
+
+        fh.seek(0)
+
+        if folderPath is not None:
+            full_path = os.path.join(folderPath, fileName)
+        else:
+            full_path = fileName
+        
+        with open(full_path, 'wb') as f:
+            f.write(fh.read())
+            f.close()
+
+    # Tải xuống nội dung file TEXT có sẵn trên cloud 
+    def getFileContent(self, fileID):
+        request = self.service.files().get_media(fileId=fileID)
+
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fd=fh, request=request)
+
+        done = False
+
+        while not done:
+            status, done = downloader.next_chunk()
+
+        content = fh.getvalue()
+
+        return content.decode('utf-8')
+        
+    # Thay đổi nội dung file TEXT có sẵn trên cloud
+    def setFileContent(self, fileID, fileContent):
+
+        file_content = MediaIoBaseUpload(io.BytesIO(fileContent.encode('utf-8')), mimetype='text/plain')
+
+        self.service.files().update(
+            fileId=fileID,
+            media_body=file_content,
+        ).execute()
 
 
-    def getFileContent(self, fileName):
-        if fileName == "config":
-            fileMetadata = { 'id': self.configFileID }
-        elif fileName == "flag":
-            fileMetadata = { 'id': self.flagFileID }
+    def getListFilesInFolder(self, folderID):
+        query = f"parents = '{ folderID }' and trashed=false"
+        response = self.service.files().list(q=query).execute()
+        files = response.get('files')
+        nextPageToken = response.get('nextPageToken')
 
-        file = self.drive.CreateFile(fileMetadata)
-        content = file.GetContentString()
-        return content
+        while nextPageToken:
+            response = self.files().list(q=query, pageToken=nextPageToken).execute()
+            files.extend(response.get('files'))
+            nextPageToken = response.get('nextPageToken')
 
+        res = [file for file in files if file['mimeType'] != 'application/vnd.google-apps.folder']
 
-    def changeFileContent(self, fileName, fileContent):
-        if fileName == "config":
-            fileMetadata = {'id': self.configFileID}
-        elif fileName == "flag":
-            fileMetadata = { 'id': self.flagFileID }
-            
-        file = self.drive.CreateFile(fileMetadata)
-        file.SetContentString(fileContent)
-        file.Upload()
-
-
-    def getListFolder(self):
-        res = []
-        listFolder = self.drive.ListFile({'q': "'" + appDataFolderID + "' in parents and trashed=false"}).GetList()
-        for folder in listFolder:
-            res.append({
-                'title': folder['title'], 
-                'id': folder['id']
-            })
-        for i in range(len(res)):
-            res[i]['title'] = datetime.strptime(res[i]['title'], '%Y-%m-%d')
-        res = sorted(res, key=lambda i: i['title'], reverse=True)
-        for i in range(len(res)):
-            res[i]['title'] = res[i]['title'].strftime('%d-%m-%Y')
         return res
 
+    def getListFoldersInFolder(self, folderID):
+        query = f"parents = '{ folderID }' and trashed=false"
+        response = self.service.files().list(q=query).execute()
+        files = response.get('files')
+        nextPageToken = response.get('nextPageToken')
 
-    def getListImages(self, folderID):
-        res = []
-        listImages = self.drive.ListFile({'q': "'" + folderID + "' in parents and trashed=false"}).GetList()
-        for image in listImages:
-            res.append({
-                'title': image['title'],
-                'id': image['id'],
-                'url': "https://drive.google.com/uc?export=view&id=" + image['id']
-            })
-        for i in range(len(res)):
-            fullPath = os.path.join(os.path.dirname(__file__), 'temp', 'image' + str(i+1) + '.jpg')
-            urllib.request.urlretrieve(res[i]['url'], fullPath)
-            baseheight = 500
-            img = Image.open(fullPath)
-            wpercent = (baseheight/float(img.size[1]))
-            wsize = int((float(img.size[0])*float(wpercent)))
-            img = img.resize((wsize, baseheight), Image.ANTIALIAS)
-            img.save(fullPath)
+        while nextPageToken:
+            response = self.files().list(q=query, pageToken=nextPageToken).execute()
+            files.extend(response.get('files'))
+            nextPageToken = response.get('nextPageToken')
+
+        res = [file for file in files if file['mimeType'] == 'application/vnd.google-apps.folder']
+
         return res
-    
 
 db = Database()
