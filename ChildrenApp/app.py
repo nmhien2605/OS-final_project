@@ -2,6 +2,7 @@ import os
 from threading import Thread
 import time
 from datetime import datetime
+import tkinter
 import pyautogui
 import tkinter as tk
 import tkinter.messagebox as msg
@@ -15,19 +16,28 @@ TIME_UPDATE = 5
 START_TIME = 0
 DURATION_TIME = 0
 INTERRUPT_TIME = 0
+BREAK_TIME = 0
 LOGIN_CHECK = -1
 STUDING = False
 WAIT = True
 PARENT = False
+
+APP_CONFIG_FOLDER_ID = '1TmOJkBPEIOJ__Brm35-SkUgPAmLHSija'
+APP_DATA_FOLDER_ID = '1ZFtEonuzNd6qWbAQ2C7yMvLXwpvTd9H6'
+CONFIG_FILE_ID = '1LoOWQtbZIIMlBOURkfJdH1mPwJURtn5Y'
+FLAG_CONFIG_FILE_ID = '1Vk1wUgYdLCALaTD7TZOGV67WFwpfgBNT'
+PASSWORD_FILE_ID = '1j2XRACvcBA-nP1IhshdLomKfiLD4TbHz'
+FLAG_PASSWORD_FILE_ID = '1vI0UGh4dDePGYz0v1Z8L826tznW4hIeq'
 
 
 def get_time_now():
     date = datetime.now()
     return date.hour * 60 + date.minute
 
+
 def check_login(password):
-    passList = db.getFileContent('password')
-    # passList = ['p', 'c'] # test line
+    data = db.getFileContent(PASSWORD_FILE_ID)
+    passList = data.splitlines()
     if password == passList[0]:
         return 0
     elif password == passList[1]:
@@ -37,7 +47,7 @@ def check_login(password):
 
 def shutdown():
     print("shutdown")
-    # os.system("shutdown /s /t 1")
+    os.system("shutdown /s /t 1")
 
 
 def wait_shutdown():
@@ -65,15 +75,16 @@ def convert_schedule(data):
 
 
 def get_schedule():
-    data = db.getFileContent('config')
+    data = db.getFileContent(CONFIG_FILE_ID)
     schedule = convert_schedule(data)
     return schedule
 
 
 def check_study(item, time):
-    global STUDING, DURATION_TIME, INTERRUPT_TIME
+    global STUDING, DURATION_TIME, INTERRUPT_TIME, BREAK_TIME
     
     if len(item) > 3:
+        BREAK_TIME = item[3]
         if STUDING:
             duration = time - DURATION_TIME
             if len(item) > 4:
@@ -111,8 +122,6 @@ def check_study(item, time):
 
 def check_schedule():
     schedule = get_schedule()
-    # date = datetime.strptime('22:00', '%H:%M') # test line
-    # time = date.hour * 60 + date.minute
     time = get_time_now()
     for item in schedule:
         if item[0] <= time and time < item[1]:
@@ -126,14 +135,24 @@ def check_schedule():
     return False
 
 
+def get_folder(folderName):
+    list = db.getListFoldersInFolder(APP_DATA_FOLDER_ID)
+    for folder in list:
+        if folderName == folder['name']:
+            return folder['id']
+    return db.createFolder(folderName, APP_DATA_FOLDER_ID)
+
+
 def record(): # take screenshot or record keyboard action
     print("record")
     while True:
         srceenshot = pyautogui.screenshot()
-        date = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        fileName = 'screenshot\\' + date + str('.png')
-        srceenshot.save(fileName)
-        # do something in here to upload imges to cloud
+        date = datetime.now()
+        dateString = date.strftime("%Y-%m-%d-%H-%M-%S")
+        folderName = date.strftime("%Y-%m-%d")
+        fileName = dateString + str('.png')
+        srceenshot.save('screenshot\\' + fileName)
+        db.uploadFile(fileName, './screenshot/' + fileName, get_folder(folderName))
         time.sleep(TIME_SCREENSHOT)
 
 
@@ -144,8 +163,7 @@ class App(tk.Tk):
 
         self.title("Children Control Application")
         self.attributes("-fullscreen", True)
-        # self.state("zoomed") # test line
-        self.title_font = font.Font(family='Helvetica', size=18, weight="bold", slant="italic")
+        self.title_font = font.Font(family='Helvetica', size=36, weight="bold", slant="italic")
         
         container = tk.Frame(self)
         container.pack(side="top", fill="both", expand=True, ipadx=10, ipady=10)
@@ -211,17 +229,27 @@ class LoginPage(tk.Frame):
         label = tk.Label(self, text="Enter password", font=controller.title_font)
         label.pack(side="top", fill="x", pady=10)
 
-        lblPass = tk.Label(self, text="Password")
-        entryPass = tk.Entry(self)
-        btnEnter = tk.Button(self, text="Enter", command=lambda: controller.login(entryPass.get()))
+        lblPass = tk.Label(self, text="Password", font=('Arial', 14))
+        entryPass = tk.Entry(self, font=('Arial', 14))
+        btnEnter = tk.Button(self, text="Enter", font=('Arial', 14), command=lambda: controller.login(entryPass.get()))
 
         lblPass.pack(pady=3)
         entryPass.pack(pady=3)
         btnEnter.pack(pady=3)
 
 
+def window_break(time):
+    win = tkinter.Tk()
+    win.attributes("-fullscreen", True)
+
+    tk.Label(win, text= "This is break time!", font=('Helvetica 36 bold')).pack(pady=20)
+
+    win.after(time, lambda:win.destroy())
+    win.mainloop()
+
+
 def study():
-    global START_TIME, DURATION_TIME, STUDING
+    global START_TIME, DURATION_TIME, STUDING, BREAK_TIME
     START_TIME = get_time_now()
     DURATION_TIME = START_TIME
     STUDING = True
@@ -234,7 +262,9 @@ def study():
             if not(STUDING):
                 if duration:
                     duration = False
-                    print('new window') # need some code
+                    breakTime = BREAK_TIME * 60000
+                    Thr = Thread(target=window_break, args=(breakTime,), daemon=True)
+                    Thr.start()
             else:
                 duration = True
             print('check')
@@ -244,7 +274,7 @@ def study():
 
 
 if __name__ == "__main__":
-    
+
     while WAIT:
         WAIT = False
         root = App()
@@ -259,7 +289,9 @@ if __name__ == "__main__":
             else:
                 time.sleep(TIME_RELOGIN)
         else:
-            study()
-            break
+            if not(WAIT):
+                break
+            else:
+                study()
     
     print("exit")
