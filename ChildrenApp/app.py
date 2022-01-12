@@ -9,10 +9,10 @@ import tkinter.messagebox as msg
 from tkinter import font
 from data import Database as db
 
-TIME_RELOGIN = 5
-TIME_SHUTDOWN =  5
-TIME_SCREENSHOT = 5
-TIME_UPDATE = 5
+TIME_RELOGIN = 3600
+TIME_SHUTDOWN =  15
+TIME_SCREENSHOT = 60
+TIME_UPDATE = 60
 START_TIME = 0
 DURATION_TIME = 0
 INTERRUPT_TIME = 0
