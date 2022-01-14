@@ -208,7 +208,7 @@ class App(tk.Tk):
                     self.destroy()
                 else:
                     if LOGIN_CHECK == -1:
-                        LOGIN_CHECK = 3
+                        LOGIN_CHECK = 2
                     elif LOGIN_CHECK == 0:
                         thr = Thread(target=wait_shutdown, daemon=True)
                         thr.start()
