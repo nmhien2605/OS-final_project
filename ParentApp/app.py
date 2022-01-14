@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 import urllib.request
-
 from tkinter import *
 from tkinter import messagebox
 from tkscrolledframe import ScrolledFrame
@@ -190,7 +189,7 @@ class App():
             button.grid(row=i, column=0, pady=5)
             i += 1
         
-        self.btnBack = Button(inner_frame, text="Trở lại", font=('Arial', 14), padx=5, pady=5, command=lambda: self.onCloseWindow('history'))
+        self.btnBack = Button(inner_frame, text="Trở lại", font=('Arial', 14), padx=5, pady=5, command=lambda: self.backWindow('history'))
         self.btnBack.pack(pady=5)
 
     def viewImagesWindow(self, folder):
@@ -204,16 +203,11 @@ class App():
         numImages = len(data)
         if numImages == 0:
             messagebox.showerror("Thông báo", "Không có hình để hiển thị")
-            return self.onCloseWindow('viewImage')
+            return self.backWindow('noImage')
 
         # Download images into temp folder
         for i in range(len(data)):
-            extension = ''
-            if data[i]['mimeType'] == 'image/png':
-                extension = '.png'
-            elif data[i]['mimeType'] == 'image/jpeg':
-                extension = '.jpg'
-            fullPath = os.path.join('./temp', 'image' + str(i+1) + extension)
+            fullPath = os.path.join('./temp', 'image' + str(i+1) + '.png')
             url = "https://drive.google.com/uc?export=view&id=" + data[i]['id']
             urllib.request.urlretrieve(url, fullPath)
             baseheight = 500
@@ -225,7 +219,7 @@ class App():
 
         imagesList = []
         for i in range(numImages):
-            imagesList.append(ImageTk.PhotoImage(Image.open('./temp/image' + str(i+1) + '.jpg')))
+            imagesList.append(ImageTk.PhotoImage(Image.open('./temp/image' + str(i+1) + '.png')))
 
         self.imageView = Label(self.root, image=imagesList[0])
         self.imageView.pack(fill='both', expand=True)
@@ -256,7 +250,7 @@ class App():
         self.footer.pack()
 
         button_back = Button(self.footer, text="<<", font=(14), state=DISABLED)
-        btnBack = Button(self.footer, text="Trở lại", font=('Arial', 14), command=lambda: self.onCloseWindow('viewImage'))
+        btnBack = Button(self.footer, text="Trở lại", font=('Arial', 14), command=lambda: self.backWindow('viewImage'))
         button_forward = Button(self.footer, text=">>", font=(14), state=ACTIVE, command=lambda: forward(1))
 
         if numImages == 1:
@@ -278,20 +272,25 @@ class App():
                 self.footer.destroy()
                 db.setFileContent(FLAG_PASSWORD_FILE_ID, "1")
                 self.mainWindow()
-            elif window_type == 'history':
-                self.sf.destroy()
-                self.mainWindow()
-            elif window_type == 'viewImage':
-                self.root.geometry("600x350")
-                self.root.resizable(0,0)
-                self.imageView.destroy()
-                self.footer.destroy()
-                self.historyActivityWindow()
             elif window_type == None:
                 self.root.destroy()
                 db.setFileContent(FLAG_CONFIG_FILE_ID, "1")
                 db.setFileContent(FLAG_PASSWORD_FILE_ID, "1")
-            
+
+    def backWindow(self, back_type):
+        if back_type == 'noImage':
+            self.root.geometry("600x350")
+            self.root.resizable(0,0)
+            self.historyActivityWindow()
+        elif back_type == 'viewImage':
+            self.root.geometry("600x350")
+            self.root.resizable(0,0)
+            self.imageView.destroy()
+            self.footer.destroy()
+            self.historyActivityWindow()
+        elif back_type == 'history':
+            self.sf.destroy()
+            self.mainWindow()
 
 def main():
     root = Tk()
